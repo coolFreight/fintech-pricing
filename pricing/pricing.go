@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"encoding/json"
 	"fmt"
 	"golang.org/x/net/websocket"
 	"log/slog"
@@ -68,7 +69,15 @@ func NewTrades(conn *websocket.Conn, logger *slog.Logger) <-chan []EquityTrade {
 	return quoteChan
 }
 
-func NewQuotes(conn *websocket.Conn, logger *slog.Logger) <-chan []EquityQuote {
+func NewQuotes(conn *websocket.Conn, tickers []string, logger *slog.Logger) <-chan []EquityQuote {
+	//read(conn, logger)
+	logger.Info(fmt.Sprintf("Subscribing for pricing %s ", tickers))
+	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
+	err := send(quotes, conn, logger)
+	if err != nil {
+		logger.Error("Could not subscribe to quotes ", err)
+	}
+	read(conn, logger)
 	quoteChan := make(chan []EquityQuote)
 	go func() {
 		for {
@@ -111,4 +120,22 @@ func (q EquityQuote) String() string {
 		"{Ticker: %s, "+
 		"BidPrice: %f, BidSize: %d, BidExchange: %s, AskPrice: %f, AskSize: %d, AskEchange: %s, Time: %s}",
 		q.Symbol, q.BidPrice, q.BidSize, q.BidExchange, q.AskPrice, q.AskSize, q.AskExchange, q.Timestamp)
+}
+
+func send(data any, ws *websocket.Conn, logger *slog.Logger) error {
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logger.Error(fmt.Sprintf("could not marshal data %s", data, err))
+	}
+	return websocket.Message.Send(ws, dataBytes)
+}
+
+func read(ws *websocket.Conn, logger *slog.Logger) {
+	var msg = make([]byte, 512)
+	var n int
+	var err error
+	if n, err = ws.Read(msg); err != nil {
+		logger.Error("Could not read data", err)
+	}
+	fmt.Printf("Received: %s.\n", msg[:n])
 }

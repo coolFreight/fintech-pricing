@@ -62,12 +62,11 @@ func main() {
 		//err = send(connect, ws, logger)
 		//read(ws, logger)
 
-		fmt.Printf("Requesting pricing\n")
-		quotes := pricing.PricingConnect{Action: "subscribe", Quotes: []string{"ACHR"}}
-		err = send(quotes, ws, logger)
-		read(ws, logger)
+		//quotes := pricing.PricingConnect{Action: "subscribe", Quotes: []string{"FAKEPACA"}}
+		//err = send(quotes, ws, logger)
+		//read(ws, logger)
 
-		var wg sync.WaitGroup
+		//var wg sync.WaitGroup
 		//trades := pricing.NewTrades(ws, logger)
 		//wg.Add(1)
 		//go func() {
@@ -77,7 +76,8 @@ func main() {
 		//	}
 		//}()
 
-		quotesPricing := pricing.NewQuotes(ws, logger)
+		var wg sync.WaitGroup
+		quotesPricing := pricing.NewQuotes(ws, []string{"FAKEPACA"}, logger)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -105,7 +105,6 @@ func startStream(prefix string, logger *slog.Logger) (*websocket.Conn, error) {
 	}
 
 	read(ws, logger)
-
 	return ws, nil
 }
 
