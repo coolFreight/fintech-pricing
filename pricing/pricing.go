@@ -59,7 +59,7 @@ func NewTrades(conn *websocket.Conn, logger *slog.Logger) <-chan []EquityTrade {
 		for {
 			var quotes []EquityTrade
 			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
-				logger.Error("Could not get trades ", err)
+				logger.Error("Could not get trades ", "error", err)
 				close(quoteChan)
 				return
 			}
@@ -70,22 +70,39 @@ func NewTrades(conn *websocket.Conn, logger *slog.Logger) <-chan []EquityTrade {
 }
 
 func NewQuotes(conn *websocket.Conn, tickers []string, logger *slog.Logger) <-chan []EquityQuote {
-	//read(conn, logger)
 	logger.Info(fmt.Sprintf("Subscribing for pricing %s ", tickers))
+
 	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
 	err := send(quotes, conn, logger)
 	if err != nil {
-		logger.Error("Could not subscribe to quotes ", err)
+		logger.Error("Could not subscribe to quotes ", "error", err)
+		panic(err)
+	} else {
+		logger.Info("Subscribed to quotes")
+		read(conn, logger)
 	}
-	read(conn, logger)
+
 	quoteChan := make(chan []EquityQuote)
 	go func() {
 		for {
 			var quotes []EquityQuote
 			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
-				logger.Error("Could not get pricing ", err)
-				close(quoteChan)
-				return
+				logger.Error("Could not get pricing... Reconnecting", "error", err)
+				//unsubscribe := PricingConnect{Action: "unsubscribe", Quotes: tickers}
+				//err := send(unsubscribe, conn, logger)
+				//if err != nil {
+				//	logger.Error("Could not subscribe to quotes ", "error", err)
+				//} else {
+				//	logger.Info("Unsubscribed from quotes")
+				//	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
+				//	err := send(quotes, conn, logger)
+				//	if err != nil {
+				//		logger.Error("Could not subscribe to quotes ", "error", err)
+				//	} else {
+				//		logger.Info("Subscribed to quotes")
+				//		read(conn, logger)
+				//	}
+				//}
 			}
 			quoteChan <- quotes
 		}
@@ -99,7 +116,7 @@ func NewCryptoPricing(conn *websocket.Conn, logger *slog.Logger) <-chan []Crypto
 		for {
 			var quotes []CryptoQuote
 			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
-				logger.Error("Could not get pricing ", err)
+				logger.Error("Could not get pricing ", "error", err)
 				close(quoteChan)
 				return
 			}
@@ -125,7 +142,7 @@ func (q EquityQuote) String() string {
 func send(data any, ws *websocket.Conn, logger *slog.Logger) error {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
-		logger.Error(fmt.Sprintf("could not marshal data %s", data, err))
+		logger.Error(fmt.Sprintf("could not marshal data %s", data), "error", err)
 	}
 	return websocket.Message.Send(ws, dataBytes)
 }
@@ -135,7 +152,7 @@ func read(ws *websocket.Conn, logger *slog.Logger) {
 	var n int
 	var err error
 	if n, err = ws.Read(msg); err != nil {
-		logger.Error("Could not read data", err)
+		logger.Error("Could not read data", "error", err)
 	}
 	fmt.Printf("Received: %s.\n", msg[:n])
 }

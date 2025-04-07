@@ -56,28 +56,8 @@ func main() {
 			log.Fatal("could not authenticate - ", err)
 		}
 		read(ws, logger)
-		//
-		//fmt.Printf("Requesting trades\n")
-		//connect := pricing.TradeConnect{Action: "subscribe", Trades: []string{"IBM"}}
-		//err = send(connect, ws, logger)
-		//read(ws, logger)
-
-		//quotes := pricing.PricingConnect{Action: "subscribe", Quotes: []string{"FAKEPACA"}}
-		//err = send(quotes, ws, logger)
-		//read(ws, logger)
-
-		//var wg sync.WaitGroup
-		//trades := pricing.NewTrades(ws, logger)
-		//wg.Add(1)
-		//go func() {
-		//	defer wg.Done()
-		//	for trade := range trades {
-		//		fmt.Println(trade)
-		//	}
-		//}()
-
 		var wg sync.WaitGroup
-		quotesPricing := pricing.NewQuotes(ws, []string{"FAKEPACA"}, logger)
+		quotesPricing := pricing.NewQuotes(ws, []string{"SPXS"}, logger)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -90,7 +70,6 @@ func main() {
 		logger.Info(fmt.Sprintf("Stream closed retrying %d", count))
 		time.Sleep(5 * time.Second)
 	}
-
 }
 
 func startStream(prefix string, logger *slog.Logger) (*websocket.Conn, error) {
