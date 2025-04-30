@@ -3,21 +3,11 @@ package pricing
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/coolFreight/fintech-pricing/internal"
 	"golang.org/x/net/websocket"
 	"log/slog"
+	"time"
 )
-
-type EquityTrade struct {
-	MessageType  string   `json:"T"`
-	Symbol       string   `json:"S"`
-	TradeId      int      `json:"i"`
-	ExchangeCode string   `json:"x"`
-	Price        float64  `json:"p"`
-	Size         int      `json:"s"`
-	Condition    []string `json:"c"`
-	Timestamp    string   `json:"t"`
-	Tape         string   `json:"z"`
-}
 
 type EquityQuote struct {
 	MessageType string   `json:"T"`
@@ -53,15 +43,41 @@ type PricingConnect struct {
 	Quotes []string `json:"quotes"`
 }
 
-func NewTrades(conn *websocket.Conn, logger *slog.Logger) <-chan []EquityTrade {
-	quoteChan := make(chan []EquityTrade)
+func NewQuotes(tickers []string, logger *slog.Logger) <-chan []EquityQuote {
+	conn, err := internal.Connect()
+	if err != nil {
+		logger.Error("Error connect pricing", "error", err)
+		return nil
+	}
+	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : [ %s ]", tickers))
+	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
+	err = send(quotes, conn, logger)
+	if err != nil {
+		logger.Error("Could not subscribe to quotes ", "error", err)
+		return nil
+	}
+	read(conn, logger)
+	logger.Info(fmt.Sprintf("Successfully subscribed for quotes %s", tickers))
+	quoteChan := make(chan []EquityQuote)
 	go func() {
+		defer close(quoteChan)
+		defer conn.Close()
 		for {
-			var quotes []EquityTrade
+			var quotes []EquityQuote
 			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
-				logger.Error("Could not get trades ", "error", err)
-				close(quoteChan)
-				return
+				if err != nil {
+					logger.Error("Error receiving an update", "error", err)
+				}
+
+				err = conn.Close()
+				if err != nil {
+					logger.Error("Error closing connection", "error", err)
+				}
+				conn, err = reconnect(logger, tickers)
+				if err != nil {
+					logger.Error("Could not reconnect to pricing", "error", err)
+					time.Sleep(30 * time.Second)
+				}
 			}
 			quoteChan <- quotes
 		}
@@ -69,45 +85,22 @@ func NewTrades(conn *websocket.Conn, logger *slog.Logger) <-chan []EquityTrade {
 	return quoteChan
 }
 
-func NewQuotes(conn *websocket.Conn, tickers []string, logger *slog.Logger) <-chan []EquityQuote {
-	logger.Info(fmt.Sprintf("Subscribing for pricing %s ", tickers))
-
-	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
-	err := send(quotes, conn, logger)
+func reconnect(logger *slog.Logger, tickers []string) (*websocket.Conn, error) {
+	logger.Info("Reconnecting for pricing")
+	conn, err := internal.Connect()
 	if err != nil {
-		logger.Error("Could not subscribe to quotes ", "error", err)
-		panic(err)
+		logger.Error("Could not connect for pricing", "error", err)
 	} else {
-		logger.Info("Subscribed to quotes")
-		read(conn, logger)
-	}
-
-	quoteChan := make(chan []EquityQuote)
-	go func() {
-		for {
-			var quotes []EquityQuote
-			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
-				logger.Error("Could not get pricing... Reconnecting", "error", err)
-				//unsubscribe := PricingConnect{Action: "unsubscribe", Quotes: tickers}
-				//err := send(unsubscribe, conn, logger)
-				//if err != nil {
-				//	logger.Error("Could not subscribe to quotes ", "error", err)
-				//} else {
-				//	logger.Info("Unsubscribed from quotes")
-				//	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
-				//	err := send(quotes, conn, logger)
-				//	if err != nil {
-				//		logger.Error("Could not subscribe to quotes ", "error", err)
-				//	} else {
-				//		logger.Info("Subscribed to quotes")
-				//		read(conn, logger)
-				//	}
-				//}
-			}
-			quoteChan <- quotes
+		quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
+		err = send(quotes, conn, logger)
+		if err != nil {
+			logger.Error("Could not subscribe to quotes ", "error", err)
+		} else {
+			read(conn, logger)
+			logger.Info("ReSubscribed to quotes")
 		}
-	}()
-	return quoteChan
+	}
+	return conn, err
 }
 
 func NewCryptoPricing(conn *websocket.Conn, logger *slog.Logger) <-chan []CryptoQuote {
@@ -124,12 +117,6 @@ func NewCryptoPricing(conn *websocket.Conn, logger *slog.Logger) <-chan []Crypto
 		}
 	}()
 	return quoteChan
-}
-
-func (t EquityTrade) String() string {
-	return fmt.Sprintf("EquityTrade"+
-		"{Ticker: %s, "+
-		"Price: %f, Size: %d,Time: %s, TradeId: %d}", t.Symbol, t.Price, t.Size, t.Timestamp, t.TradeId)
 }
 
 func (q EquityQuote) String() string {
@@ -154,5 +141,5 @@ func read(ws *websocket.Conn, logger *slog.Logger) {
 	if n, err = ws.Read(msg); err != nil {
 		logger.Error("Could not read data", "error", err)
 	}
-	fmt.Printf("Received: %s.\n", msg[:n])
+	fmt.Printf("Mesage from host: %s.\n", msg[:n])
 }

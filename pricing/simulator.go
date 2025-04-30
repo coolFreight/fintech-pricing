@@ -40,10 +40,8 @@ func priceSimulation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close()
-
 	quotes := make([]EquityQuote, 0)
 	quotes = append(quotes, EquityQuote{BidPrice: 25.66})
-
 	for {
 		time.Sleep(5 * time.Second)
 		slog.Debug("Sending message")
