@@ -28,9 +28,13 @@ func Connect() (*websocket.Conn, error) {
 	logger.Info("Connecting websocket stream .......")
 	origin := os.Getenv(APCA_BASE_URL) + os.Getenv(APCA_API_VERSION)
 	url := os.Getenv(APCA_MARKET_PRICING_STREAM)
+
+	logger.Info("Connecting websocket stream ", slog.String("url", url))
+	logger.Info("Using ", slog.String("origin", origin))
+
 	ws, err := websocket.Dial(url, "", origin)
 	if err != nil {
-		logger.Error("Could not connect to websocket", err)
+		logger.Error("Could not connect to websocket", slog.Any("error", err))
 		return nil, err
 	}
 	logger.Info("Successfully connected to pricing host")
@@ -51,7 +55,7 @@ func Connect() (*websocket.Conn, error) {
 func Send(data any, ws *websocket.Conn) error {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
-		logger.Error(fmt.Sprintf("could not marshal data %s", data, err))
+		logger.Error(fmt.Sprintf("could not marshal data ", slog.Any("data", data), slog.Any("error", err)))
 	}
 	return websocket.Message.Send(ws, dataBytes)
 }
