@@ -2,7 +2,6 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
 	"golang.org/x/net/websocket"
 	"log/slog"
 	"os"
@@ -45,7 +44,7 @@ func Connect() (*websocket.Conn, error) {
 	}
 	err = Send(authenticate, ws)
 	if err != nil {
-		logger.Error("could not authenticate - ", err)
+		logger.Error("could not authenticate - ", slog.Any("error", err))
 		return nil, err
 	}
 	logger.Info("Successfully authenticated to pricing host")
@@ -55,7 +54,7 @@ func Connect() (*websocket.Conn, error) {
 func Send(data any, ws *websocket.Conn) error {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
-		logger.Error(fmt.Sprintf("could not marshal data ", slog.Any("data", data), slog.Any("error", err)))
+		logger.Error("could not marshal data ", slog.Any("data", data), slog.Any("error", err))
 	}
 	return websocket.Message.Send(ws, dataBytes)
 }
