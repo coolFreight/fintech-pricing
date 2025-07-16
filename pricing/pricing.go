@@ -2,8 +2,8 @@ package pricing
 
 import (
 	"encoding/json"
+	"fintech-pricing/internal"
 	"fmt"
-	"github.com/coolFreight/fintech-pricing/internal"
 	"golang.org/x/net/websocket"
 	"log/slog"
 	"time"
@@ -43,13 +43,21 @@ type PricingConnect struct {
 	Quotes []string `json:"quotes"`
 }
 
-func NewQuotes(tickers []string, logger *slog.Logger) <-chan []EquityQuote {
+type PricingClient struct {
+	conn         *websocket.Conn
+	logger       *slog.Logger
+	EquityQuotes <-chan []EquityQuote
+}
+
+var priceBook = make(map[string]EquityQuote)
+
+func NewPricingClient(done <-chan any, tickers []string, logger *slog.Logger) *PricingClient {
 	conn, err := internal.Connect()
 	if err != nil {
 		logger.Error("Error connect pricing", "error", err)
 		return nil
 	}
-	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : [ %s ]", tickers))
+	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : %s ", tickers))
 	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
 	err = send(quotes, conn, logger)
 	if err != nil {
@@ -60,15 +68,16 @@ func NewQuotes(tickers []string, logger *slog.Logger) <-chan []EquityQuote {
 	logger.Info(fmt.Sprintf("Successfully subscribed for quotes %s", tickers))
 	quoteChan := make(chan []EquityQuote)
 	go func() {
+		defer fmt.Println("shutting down quote channel")
 		defer close(quoteChan)
 		defer conn.Close()
+
 		for {
 			var quotes []EquityQuote
 			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
 				if err != nil {
 					logger.Error("Error receiving an update", "error", err)
 				}
-
 				err = conn.Close()
 				if err != nil {
 					logger.Error("Error closing connection", "error", err)
@@ -79,10 +88,102 @@ func NewQuotes(tickers []string, logger *slog.Logger) <-chan []EquityQuote {
 					time.Sleep(30 * time.Second)
 				}
 			}
-			quoteChan <- quotes
+
+			logger.Info(fmt.Sprintf("Received quotes: %v", quotes))
+			select {
+			case quoteChan <- quotes:
+			case <-done:
+				return
+			}
 		}
 	}()
+
+	printPriceBook(done, quoteChan, logger)
+	return &PricingClient{
+		conn:         conn,
+		logger:       logger,
+		EquityQuotes: quoteChan,
+	}
+}
+
+func NewQuotes(done <-chan any, tickers []string, logger *slog.Logger) <-chan []EquityQuote {
+	conn, err := internal.Connect()
+	if err != nil {
+		logger.Error("Error connect pricing", "error", err)
+		return nil
+	}
+	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : %s ", tickers))
+	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
+	err = send(quotes, conn, logger)
+	if err != nil {
+		logger.Error("Could not subscribe to quotes ", "error", err)
+		return nil
+	}
+	read(conn, logger)
+	logger.Info(fmt.Sprintf("Successfully subscribed for quotes %s", tickers))
+	quoteChan := make(chan []EquityQuote)
+	go func() {
+		defer fmt.Println("shutting down quote channel")
+		defer close(quoteChan)
+		defer conn.Close()
+
+		for {
+			var quotes []EquityQuote
+			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
+				if err != nil {
+					logger.Error("Error receiving an update", "error", err)
+				}
+				err = conn.Close()
+				if err != nil {
+					logger.Error("Error closing connection", "error", err)
+				}
+				conn, err = reconnect(logger, tickers)
+				if err != nil {
+					logger.Error("Could not reconnect to pricing", "error", err)
+					time.Sleep(30 * time.Second)
+				}
+			}
+			select {
+			case quoteChan <- quotes:
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	printPriceBook(done, quoteChan, logger)
 	return quoteChan
+}
+
+func printPriceBook(done <-chan any, quotesChan <-chan []EquityQuote, logger *slog.Logger) {
+
+	go func() {
+		for {
+			defer fmt.Println("shutting down price book collection")
+			select {
+			case quotes := <-quotesChan:
+				for _, q := range quotes {
+					priceBook[q.Symbol] = q
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			defer fmt.Println("shutting down printing price book")
+			select {
+			case <-done:
+				return
+			default:
+				for k, v := range priceBook {
+					logger.Info(fmt.Sprintf("Ticker: %s, BidPrice: %f, AskPrice: %f ", k, v.BidPrice, v.AskPrice))
+				}
+				time.Sleep(5 * time.Minute)
+			}
+		}
+	}()
 }
 
 func reconnect(logger *slog.Logger, tickers []string) (*websocket.Conn, error) {
@@ -132,6 +233,15 @@ func send(data any, ws *websocket.Conn, logger *slog.Logger) error {
 		logger.Error(fmt.Sprintf("could not marshal data %s", data), "error", err)
 	}
 	return websocket.Message.Send(ws, dataBytes)
+}
+
+func (pc *PricingClient) Subscribe(tickers []string) error {
+	pc.logger.Info("Subscribing for pricing for tickers", slog.Any("tickers", tickers))
+	dataBytes, err := json.Marshal(PricingConnect{Action: "subscribe", Quotes: tickers})
+	if err != nil {
+		pc.logger.Error("could subscribe for tickers", slog.Any("tickers", tickers), slog.Any("error", err))
+	}
+	return websocket.Message.Send(pc.conn, dataBytes)
 }
 
 func read(ws *websocket.Conn, logger *slog.Logger) {
