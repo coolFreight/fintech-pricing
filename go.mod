@@ -1,4 +1,4 @@
-module fintech-pricing
+module github.com/coolFreight/fintech-pricing
 
 go 1.24
 
