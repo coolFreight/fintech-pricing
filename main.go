@@ -1,13 +1,14 @@
 package main
 
 import (
+	"fintech-pricing/internal"
+	"fintech-pricing/pricing"
 	"flag"
 	"fmt"
-	"github.com/coolFreight/fintech-pricing/internal"
-	"github.com/coolFreight/fintech-pricing/pricing"
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 )
 
 const (
@@ -42,19 +43,26 @@ func main() {
 	_ = os.Setenv(APCA_MARKET_HISTORICAL_URL, os.Getenv(prefix+"_MARKET_HISTORICAL_URL"))
 	if env == "test" {
 		logger.Info("******* PRICING FOR FAKEPACA TEST ENVIRONMENT ****************")
-		_ = os.Setenv(APCA_MARKET_STREAM, os.Getenv("APCA_TEST_PRICING_MARKET_STREAM"))
+		_ = os.Setenv(internal.APCA_MARKET_PRICING_STREAM, os.Getenv("APCA_TEST_PRICING_MARKET_STREAM"))
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	logger.Info("Lets get some pricing")
 	var wg sync.WaitGroup
-	quoteChan := pricing.NewQuotes([]string{"SPXS", "IBM", "YOU", "FAKEPACA"}, logger)
+	done := make(chan any)
+	pc := pricing.NewPricingClient(done, []string{"FAKEPACA"}, logger)
+
+	logger.Info("Lets get some pricing again")
+	time.Sleep(time.Second * 30)
+	pc.Subscribe([]string{"APPL"})
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for quote := range quoteChan {
-			fmt.Println(quote)
-		}
+		time.Sleep(time.Minute * 60)
+		close(done)
+		time.Sleep(time.Second * 30)
 	}()
+
 	wg.Wait()
 }
