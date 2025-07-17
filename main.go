@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fintech-pricing/internal"
-	"fintech-pricing/pricing"
 	"flag"
 	"fmt"
+	"github.com/coolFreight/fintech-pricing/internal"
+	"github.com/coolFreight/fintech-pricing/pricing"
 	"log/slog"
 	"os"
 	"sync"
