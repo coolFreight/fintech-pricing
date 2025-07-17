@@ -2,8 +2,8 @@ package pricing
 
 import (
 	"encoding/json"
-	"fintech-pricing/internal"
 	"fmt"
+	"github.com/coolFreight/fintech-pricing/internal"
 	"golang.org/x/net/websocket"
 	"log/slog"
 	"time"
