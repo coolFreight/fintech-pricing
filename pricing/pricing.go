@@ -89,7 +89,6 @@ func NewPricingClient(done <-chan any, tickers []string, logger *slog.Logger) *P
 				}
 			}
 
-			logger.Info(fmt.Sprintf("Received quotes: %v", quotes))
 			select {
 			case quoteChan <- quotes:
 			case <-done:
