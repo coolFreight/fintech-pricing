@@ -2,9 +2,10 @@ package internal
 
 import (
 	"encoding/json"
-	"golang.org/x/net/websocket"
 	"log/slog"
 	"os"
+
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -24,10 +25,10 @@ type Auth struct {
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 func Connect() (*websocket.Conn, error) {
-	logger.Info("Connecting websocket stream .......")
 	origin := os.Getenv(APCA_BASE_URL) + os.Getenv(APCA_API_VERSION)
 	url := os.Getenv(APCA_MARKET_PRICING_STREAM)
-
+	logger.Info("configs ", slog.String(APCA_BASE_URL, os.Getenv(APCA_BASE_URL)))
+	logger.Info("configs ", slog.String(APCA_API_VERSION, os.Getenv(APCA_API_VERSION)))
 	logger.Info("Connecting websocket stream ", slog.String("url", url))
 	logger.Info("Using ", slog.String("origin", origin))
 

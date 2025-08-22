@@ -3,10 +3,11 @@ package pricing
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/coolFreight/fintech-pricing/internal"
-	"golang.org/x/net/websocket"
 	"log/slog"
 	"time"
+
+	"github.com/coolFreight/fintech-pricing/internal"
+	"golang.org/x/net/websocket"
 )
 
 type EquityQuote struct {
@@ -49,17 +50,10 @@ type PricingClient struct {
 	EquityQuotes <-chan []EquityQuote
 }
 
-var priceBook = make(map[string]EquityQuote)
-
-func NewPricingClient(done <-chan any, tickers []string, logger *slog.Logger) *PricingClient {
-	conn, err := internal.Connect()
-	if err != nil {
-		logger.Error("Error connect pricing", "error", err)
-		return nil
-	}
+func NewPricingClient(conn *websocket.Conn, done <-chan any, tickers []string, logger *slog.Logger) *PricingClient {
 	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : %s ", tickers))
 	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
-	err = send(quotes, conn, logger)
+	err := send(quotes, conn, logger)
 	if err != nil {
 		logger.Error("Could not subscribe to quotes ", "error", err)
 		return nil
@@ -71,12 +65,11 @@ func NewPricingClient(done <-chan any, tickers []string, logger *slog.Logger) *P
 		defer fmt.Println("shutting down quote channel")
 		defer close(quoteChan)
 		defer conn.Close()
-
 		for {
 			var quotes []EquityQuote
 			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
 				if err != nil {
-					logger.Error("Error receiving an update", "error", err)
+					logger.Error("Error receiving a pricing quotes", "error", err)
 				}
 				err = conn.Close()
 				if err != nil {
@@ -88,6 +81,7 @@ func NewPricingClient(done <-chan any, tickers []string, logger *slog.Logger) *P
 					time.Sleep(30 * time.Second)
 				}
 			}
+			logger.Info(fmt.Sprintf("Received quotes: %v", quotes))
 			select {
 			case quoteChan <- quotes:
 			case <-done:
@@ -121,22 +115,6 @@ func reconnect(logger *slog.Logger, tickers []string) (*websocket.Conn, error) {
 	return conn, err
 }
 
-func NewCryptoPricing(conn *websocket.Conn, logger *slog.Logger) <-chan []CryptoQuote {
-	quoteChan := make(chan []CryptoQuote)
-	go func() {
-		for {
-			var quotes []CryptoQuote
-			if err := websocket.JSON.Receive(conn, &quotes); err != nil {
-				logger.Error("Could not get pricing ", "error", err)
-				close(quoteChan)
-				return
-			}
-			quoteChan <- quotes
-		}
-	}()
-	return quoteChan
-}
-
 func (q EquityQuote) String() string {
 	return fmt.Sprintf("EquityQuote"+
 		"{Ticker: %s, "+
@@ -168,5 +146,5 @@ func read(ws *websocket.Conn, logger *slog.Logger) {
 	if n, err = ws.Read(msg); err != nil {
 		logger.Error("Could not read data", "error", err)
 	}
-	fmt.Printf("Mesage from host: %s.\n", msg[:n])
+	fmt.Printf("Message from host: %s.\n", msg[:n])
 }
