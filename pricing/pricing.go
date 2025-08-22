@@ -81,7 +81,6 @@ func NewPricingClient(conn *websocket.Conn, done <-chan any, tickers []string, l
 					time.Sleep(30 * time.Second)
 				}
 			}
-			logger.Info(fmt.Sprintf("Received quotes: %v", quotes))
 			select {
 			case quoteChan <- quotes:
 			case <-done:
