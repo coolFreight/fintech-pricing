@@ -2,6 +2,7 @@ package pricing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -45,27 +46,29 @@ type PricingConnect struct {
 }
 
 type PricingClient struct {
-	conn         *websocket.Conn
-	logger       *slog.Logger
-	EquityQuotes <-chan []EquityQuote
+	conn   *websocket.Conn
+	logger *slog.Logger
 }
 
-func NewPricingClient(conn *websocket.Conn, done <-chan any, tickers []string, logger *slog.Logger) *PricingClient {
+func NewPricingClient(conn *websocket.Conn, logger *slog.Logger) *PricingClient {
+	return &PricingClient{
+		conn:   conn,
+		logger: logger,
+	}
+}
+
+func (pc *PricingClient) Start(done <-chan any, tickers []string) (<-chan []EquityQuote, error) {
+	logger := pc.logger
 	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : %s ", tickers))
 	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
-	err := send(quotes, conn, logger)
+	err := send(quotes, pc.conn, logger)
 	if err != nil {
 		logger.Error("Could not subscribe to quotes ", "error", err)
-		return nil
+		return nil, errors.New("Could not subscribe to quotes ")
 	}
-	read(conn, logger)
+	read(pc.conn, logger)
 	logger.Info(fmt.Sprintf("Successfully subscribed for quotes %s", tickers))
 	quoteChan := make(chan []EquityQuote)
-	pc := &PricingClient{
-		conn:         conn,
-		logger:       logger,
-		EquityQuotes: quoteChan,
-	}
 
 	go func() {
 		defer logger.Warn("shutting down quote channel")
@@ -91,8 +94,7 @@ func NewPricingClient(conn *websocket.Conn, done <-chan any, tickers []string, l
 			}
 		}
 	}()
-
-	return pc
+	return quoteChan, nil
 }
 
 func (pc *PricingClient) reconnect(logger *slog.Logger, tickers []string) (*websocket.Conn, error) {

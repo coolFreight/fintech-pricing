@@ -53,9 +53,10 @@ func main() {
 		return
 	}
 	done := make(chan any)
-	pc := pricing.NewPricingClient(conn, done, []string{"JOBY"}, logger)
+	pc := pricing.NewPricingClient(conn, logger)
 
-	for price := range pc.EquityQuotes {
+	priceChan, err := pc.Start(done, []string{"FAKEPACA"})
+	for price := range priceChan {
 		for _, quote := range price {
 			logger.Info("Received quote", slog.Any("quote", quote))
 		}
