@@ -28,6 +28,7 @@ func Connect() (*websocket.Conn, error) {
 	origin := os.Getenv(APCA_BASE_URL) + os.Getenv(APCA_API_VERSION)
 	url := os.Getenv(APCA_MARKET_PRICING_STREAM)
 	logger.Info("configs ", slog.String(APCA_BASE_URL, os.Getenv(APCA_BASE_URL)))
+	logger.Info("configs ", slog.String(APCA_MARKET_PRICING_STREAM, os.Getenv(APCA_MARKET_PRICING_STREAM)))
 	logger.Info("configs ", slog.String(APCA_API_VERSION, os.Getenv(APCA_API_VERSION)))
 	logger.Info("Connecting websocket stream ", slog.String("url", url))
 	logger.Info("Using ", slog.String("origin", origin))

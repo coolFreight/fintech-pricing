@@ -52,10 +52,9 @@ func main() {
 		logger.Error("Error connecting to pricing", slog.Any("error", err))
 		return
 	}
-	done := make(chan any)
 	pc := pricing.NewPricingClient(conn, logger)
 
-	priceChan, err := pc.Start(done, []string{"FAKEPACA"})
+	priceChan, err := pc.Start([]string{"FAKEPACA"})
 	for price := range priceChan {
 		for _, quote := range price {
 			logger.Info("Received quote", slog.Any("quote", quote))
