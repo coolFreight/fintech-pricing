@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
@@ -13,6 +14,7 @@ import (
 )
 
 var upgrader = gSocket.Upgrader{}
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 type PriceSimulator struct {
 	ticker          string
@@ -57,28 +59,15 @@ type AuthResponse struct {
 	Status  string `json:"T"`
 }
 
-func NewPriceSimulator() (*PriceSimulator, error) {
-	simulator := &PriceSimulator{}
-	websockUrl, httpUrl, err := simulator.Start()
-	if err != nil {
-		slog.Error("could not start price simulator", slog.Any("error", err))
-		return nil, err
-	}
-	simulator.WebsockUrl = websockUrl
-	simulator.HttpUrl = httpUrl
-
-	return simulator, err
-}
-
 func (ps *PriceSimulator) PublishPrice(quote EquityQuote) error {
 	quotes := make([]EquityQuote, 0)
 	quotes = append(quotes, quote)
 	err := ps.ws.WriteJSON(quotes)
 	if err != nil {
-		slog.Error("Write JSON failed", slog.Any("error", err))
+		logger.Error("Write JSON failed", slog.Any("error", err))
 		return err
 	} else {
-		slog.Info("Publishing simulator price", slog.Any("price", quotes))
+		logger.Info("Publishing simulator price", slog.Any("price", quotes))
 	}
 	return nil
 }
@@ -86,20 +75,12 @@ func (ps *PriceSimulator) PublishPrice(quote EquityQuote) error {
 func (ps *PriceSimulator) PublishOrderEvent(trade any) error {
 	err := ps.tradeWs.WriteJSON(trade)
 	if err != nil {
-		slog.Error("Write JSON failed", slog.Any("error", err))
+		logger.Error("Write JSON failed", slog.Any("error", err))
 		return err
 	} else {
-		slog.Info("Publishing simulated order event", slog.Any("order", trade))
+		logger.Info("Publishing simulated order event", slog.Any("order", trade))
 	}
 	return nil
-}
-
-func RandomizeStart(ticker string) (string, string, error) {
-	simulator := &PriceSimulator{
-		ticker:          ticker,
-		randomizeQuotes: true,
-	}
-	return simulator.Start()
 }
 
 func (ps *PriceSimulator) Start() (string, string, error) {
@@ -107,11 +88,14 @@ func (ps *PriceSimulator) Start() (string, string, error) {
 	go func() {
 		r := mux.NewRouter().StrictSlash(true)
 		r.HandleFunc("/pricing", ps.priceSimulation)
+		r.HandleFunc("/v2/events/trades", func(writer http.ResponseWriter, request *http.Request) {
+
+		})
 		r.HandleFunc("/order-manager", ps.orderSimulation)
 		r.HandleFunc("/v2/stocks/snapshots", func(writer http.ResponseWriter, request *http.Request) {
-			slog.Info("Received snapshot request")
 			//writer.WriteHeader(http.StatusOK)
 			//writer.Header().Add("Content-Type", "application/json")
+			stock := request.URL.Query().Get("symbols")
 			snapShot := marketdata.Snapshot{
 				LatestQuote: &marketdata.Quote{
 					BidPrice: 100.00,
@@ -125,7 +109,7 @@ func (ps *PriceSimulator) Start() (string, string, error) {
 			}
 
 			snapshots := make(map[string]*marketdata.Snapshot)
-			snapshots["FACEPACA"] = &snapShot
+			snapshots[stock] = &snapShot
 			writer.Header().Set("Content-Type", "application/json")
 			err := json.NewEncoder(writer).Encode(snapshots)
 			if err != nil {
@@ -148,7 +132,7 @@ func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request
 	for {
 		var request PricingConnect
 		c.ReadJSON(&request)
-		slog.Info("Pricing-Simulator: Received PricingConnect ", slog.Any("request", request))
+		logger.Info("Pricing-Simulator: Received PricingConnect ", slog.Any("request", request))
 		resp := &AuthResponse{
 			Message: "authenticated",
 			Status:  "success",
@@ -160,7 +144,7 @@ func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request
 }
 
 func (ps *PriceSimulator) orderSimulation(w http.ResponseWriter, r *http.Request) {
-	slog.Info("Incoming order manager simulator request")
+	logger.Info("Incoming order manager simulator request")
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("Websocket dial failed ", "error", err)
