@@ -59,6 +59,19 @@ type AuthResponse struct {
 	Status  string `json:"T"`
 }
 
+func NewPriceSimulator() (*PriceSimulator, error) {
+	simulator := &PriceSimulator{}
+	websockUrl, httpUrl, err := simulator.Start()
+	if err != nil {
+		slog.Error("could not start price simulator", slog.Any("error", err))
+		return nil, err
+	}
+	simulator.WebsockUrl = websockUrl
+	simulator.HttpUrl = httpUrl
+
+	return simulator, err
+}
+
 func (ps *PriceSimulator) PublishPrice(quote EquityQuote) error {
 	quotes := make([]EquityQuote, 0)
 	quotes = append(quotes, quote)
