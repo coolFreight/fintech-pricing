@@ -1,7 +1,6 @@
 package pricing
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,8 +22,10 @@ type PriceSimulator struct {
 	pricingClient   *PricingClient
 	ws              *gSocket.Conn
 	tradeWs         *gSocket.Conn
+	Snapshots       []marketdata.Snapshot
 	WebsockUrl      string
 	HttpUrl         string
+	endpoints       map[string]func(writer http.ResponseWriter, request *http.Request)
 }
 
 type Auth struct {
@@ -59,17 +60,11 @@ type AuthResponse struct {
 	Status  string `json:"T"`
 }
 
-func NewPriceSimulator() (*PriceSimulator, error) {
-	simulator := &PriceSimulator{}
-	websockUrl, httpUrl, err := simulator.Start()
-	if err != nil {
-		slog.Error("could not start price simulator", slog.Any("error", err))
-		return nil, err
+func NewPriceSimulator() *PriceSimulator {
+	simulator := &PriceSimulator{
+		endpoints: make(map[string]func(writer http.ResponseWriter, request *http.Request)),
 	}
-	simulator.WebsockUrl = websockUrl
-	simulator.HttpUrl = httpUrl
-
-	return simulator, err
+	return simulator
 }
 
 func (ps *PriceSimulator) PublishPrice(quote EquityQuote) error {
@@ -96,8 +91,14 @@ func (ps *PriceSimulator) PublishOrderEvent(trade any) error {
 	return nil
 }
 
-func (ps *PriceSimulator) Start() (string, string, error) {
+func (ps *PriceSimulator) Register(endpoint string, f func(writer http.ResponseWriter, request *http.Request)) {
+	ps.endpoints[endpoint] = f
+}
 
+func (ps *PriceSimulator) Start() error {
+	logger.Info("Starting PriceSimulator")
+	var err error
+	errChan := make(chan error)
 	go func() {
 		r := mux.NewRouter().StrictSlash(true)
 		r.HandleFunc("/pricing", ps.priceSimulation)
@@ -105,34 +106,22 @@ func (ps *PriceSimulator) Start() (string, string, error) {
 
 		})
 		r.HandleFunc("/order-manager", ps.orderSimulation)
-		r.HandleFunc("/v2/stocks/snapshots", func(writer http.ResponseWriter, request *http.Request) {
-			//writer.WriteHeader(http.StatusOK)
-			//writer.Header().Add("Content-Type", "application/json")
-			stock := request.URL.Query().Get("symbols")
-			snapShot := marketdata.Snapshot{
-				LatestQuote: &marketdata.Quote{
-					BidPrice: 100.00,
-				},
-				MinuteBar: &marketdata.Bar{
-					Open:  100.00,
-					High:  100.00,
-					Low:   100.00,
-					Close: 100.00,
-				},
-			}
-
-			snapshots := make(map[string]*marketdata.Snapshot)
-			snapshots[stock] = &snapShot
-			writer.Header().Set("Content-Type", "application/json")
-			err := json.NewEncoder(writer).Encode(snapshots)
-			if err != nil {
-				slog.Error("could not marshal data ", slog.Any("data", snapShot), slog.Any("error", err))
-			}
-		})
-		http.ListenAndServe(":8080", r)
-		slog.Info("Pricing simulator websocket connected on", "websocket", "", "http", "s.URL")
+		for endpoint, handler := range ps.endpoints {
+			r.HandleFunc(endpoint, handler)
+		}
+		err := http.ListenAndServe(":8080", r)
+		errChan <- err
 	}()
-	return "ws://127.0.0.1:8080/pricing", "http://127.0.0.1:8080", nil
+	ps.WebsockUrl = "ws://127.0.0.1:8080/pricing"
+	ps.HttpUrl = "http://127.0.0.1:8080"
+	slog.Info("Pricing simulator websocket connected on", "websocket", ps.WebsockUrl, "http", ps.HttpUrl)
+
+	return err
+}
+
+func (ps *PriceSimulator) Stop() {
+	logger.Info("Stopping pricing simulator graceful with interrupt")
+
 }
 
 func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request) {
