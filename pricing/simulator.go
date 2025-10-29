@@ -169,15 +169,6 @@ func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request
 		slog.Error("Websocket dial failed ", "error", err)
 		return
 	}
-	ps.server.RegisterOnShutdown(func() {
-		err := c.WriteMessage(gSocket.CloseMessage, gSocket.FormatCloseMessage(gSocket.CloseNormalClosure, ""))
-		if err != nil {
-			logger.Error("Price simulation- Failed to close socket", "error", err)
-			return
-		}
-		logger.Info("Close Price simulation connection")
-		err = c.Close()
-	})
 
 	ps.ws = c
 	for {
@@ -211,16 +202,6 @@ func (ps *PriceSimulator) orderSimulation(w http.ResponseWriter, r *http.Request
 		slog.Error("Websocket dial failed ", "error", err)
 		return
 	}
-
-	ps.server.RegisterOnShutdown(func() {
-		err := c.WriteMessage(gSocket.CloseMessage, gSocket.FormatCloseMessage(gSocket.CloseNormalClosure, ""))
-		if err != nil {
-			return
-		}
-		time.Sleep(1 * time.Second)
-		logger.Info("Close Order simulation connection")
-		err = c.Close()
-	})
 
 	ps.tradeWs = c
 	for {
