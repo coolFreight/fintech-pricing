@@ -99,11 +99,6 @@ func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 				}
 			}
 		}()
-		select {
-		case <-pc.done:
-			logger.Info("Shutting down pricing client")
-			return
-		}
 	}()
 	return quoteChan, nil
 }
