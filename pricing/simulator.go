@@ -88,7 +88,7 @@ func (ps *PriceSimulator) PublishPrice(quote any) error {
 			logger.Error("Write JSON failed", slog.Any("error", err))
 			return err
 		} else {
-			logger.Info("Publishing simulator price", slog.Any("price", quotes))
+			logger.Debug("Publishing simulator price", slog.Any("price", quotes))
 		}
 
 	}
@@ -105,13 +105,12 @@ func (ps *PriceSimulator) PublishOrderEvent(trade any) error {
 			return err
 		}
 	} else {
-		logger.Info("Creating a trade Json")
 		err := ps.tradeWs.WriteJSON(trade)
 		if err != nil {
 			logger.Error("Write JSON failed", slog.Any("error", err))
 			return err
 		} else {
-			logger.Info("Publishing simulated order event", slog.Any("order", trade))
+			logger.Debug("Publishing simulated order event", slog.Any("order", trade))
 		}
 	}
 	return nil
@@ -210,7 +209,7 @@ func (ps *PriceSimulator) orderSimulation(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			slog.Error("Could not read json data", "error", err)
 		} else {
-			slog.Info("Received Simulated Order Manager authentication request", "request", message)
+			slog.Debug("Received Simulated Order Manager authentication request", "request", message)
 			err = c.WriteMessage(gSocket.TextMessage, message)
 			if err != nil {
 				slog.Error("Could not send order manager simulator authenticated response", "error", err)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/coolFreight/fintech-pricing/internal"
@@ -45,16 +46,18 @@ type PricingConnect struct {
 }
 
 type PricingClient struct {
-	conn   *websocket.Conn
-	logger *slog.Logger
-	done   chan any
-	Quotes []string
+	conn      *websocket.Conn
+	logger    *slog.Logger
+	done      chan any
+	Quotes    []string
+	retryChan chan bool
 }
 
-func NewPricingClient(conn *websocket.Conn, logger *slog.Logger) *PricingClient {
+func NewPricingClient(conn *websocket.Conn, retryChan chan bool, logger *slog.Logger) *PricingClient {
 	return &PricingClient{
-		conn:   conn,
-		logger: logger,
+		conn:      conn,
+		logger:    logger,
+		retryChan: retryChan,
 	}
 }
 
@@ -85,14 +88,13 @@ func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 			}(pc.conn)
 			for {
 				if err := websocket.JSON.Receive(pc.conn, &quotes); err != nil {
-					logger.Error("Could not receive quotes", "error", err)
-					err = pc.conn.Close()
-					if err != nil {
-						logger.Error("Error closing connection", "error", err)
-					}
-					pc.conn, err = pc.reconnect(logger, tickers)
-					if err != nil {
-						logger.Error("Could not reconnect to pricing", "error", err)
+					if err == io.EOF {
+						logger.Warn("Order manager connection lost")
+						pc.retryChan <- true
+						return
+					} else {
+						logger.Error("Error reading data", "error", err)
+						return
 					}
 				} else {
 					quoteChan <- quotes
@@ -103,13 +105,13 @@ func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 	return quoteChan, nil
 }
 
-func (pc *PricingClient) reconnect(logger *slog.Logger, tickers []string) (*websocket.Conn, error) {
-	logger.Info("Reconnecting for pricing")
+func (pc *PricingClient) Reconnect() (*websocket.Conn, error) {
+	pc.logger.Info("Reconnecting for pricing")
 	conn, err := internal.Connect()
 	if err != nil {
 		logger.Error("Could not connect for pricing", "error", err)
 	} else {
-		quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
+		quotes := PricingConnect{Action: "subscribe", Quotes: pc.Quotes}
 		err = send(quotes, conn, logger)
 		if err != nil {
 			logger.Error("Could not subscribe to quotes ", "error", err)
