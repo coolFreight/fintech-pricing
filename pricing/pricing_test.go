@@ -1,7 +1,12 @@
 package pricing
 
 import (
+	"log/slog"
+	"os"
 	"testing"
+	"time"
+
+	"github.com/coolFreight/fintech-pricing/internal"
 )
 
 var _ = func() bool {
@@ -9,37 +14,56 @@ var _ = func() bool {
 	return true
 }()
 
-func TestNewQuotes(t *testing.T) {
-	//ws, err := Start()
-	//if err != nil {
-	//	t.Fatalf("Could not start simulation pricing %v", err)
-	//}
-	//
-	//c := NewQuotes([]string{"AAPL"}, slog.Default())
-	//
-	//for price := range c {
-	//	log.Printf("Received price %s", price)
-	//}
-
-}
-
 func TestPricingReconnect(t *testing.T) {
-	//ws, err := Start()
-	//if err != nil {
-	//	t.Fatalf("START %v", err)
-	//}
-	//defer ws.Close()
-	//slog.Info("Ready to receive messages")
-	//var incomingEq EquityQuote
-	//
-	//for i := 0; i < 2; i++ {
-	//	//time.Sleep(17 * time.Second)
-	//	log.Printf("Getting message")
-	//	websocket.JSON.Receive(ws, &incomingEq)
-	//	//if err != nil {
-	//	//	log.Fatalf("%v", err)
-	//	//}
-	//	time.Sleep(1 * time.Second)
-	//	log.Printf("Received: %s", incomingEq)
-	//}
+	simulator := NewPriceSimulator()
+	simulator.Start()
+
+	retryChan := make(chan bool)
+
+	url := simulator.WebsockUrl
+
+	_ = os.Setenv(internal.APCA_BASE_URL, url)
+	_ = os.Setenv(internal.APCA_PRICING_MARKET_STREAM, url)
+	time.Sleep(1 * time.Second)
+	pricingWebsocket, err := internal.Connect()
+	pricingClient := NewPricingClient(pricingWebsocket, retryChan, logger)
+	pricingClient.Start([]string{"ACA"})
+
+	go func() {
+		for {
+			select {
+			case <-retryChan:
+				pricingClient.Reconnect()
+				logger.Info("Called reconnect on pricing client.")
+			}
+		}
+	}()
+
+	if err != nil {
+		slog.Error("Error connecting to pricing", slog.Any("error", err))
+		return
+	}
+
+	//give some time to do the subcription subcribes
+	time.Sleep(2 * time.Second)
+	go func() {
+		for prices := range pricingClient.pricingChan {
+			for _, price := range prices {
+				slog.Info("Received price", slog.Any("quote", price))
+			}
+		}
+	}()
+
+	simulator.PublishPrice(EquityQuote{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"})
+	time.Sleep(500 * time.Millisecond)
+	simulator.PublishPrice(EquityQuote{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"})
+	time.Sleep(500 * time.Millisecond)
+	simulator.PublishPrice(EquityQuote{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"})
+
+	simulator.ServerConnectionClose()
+
+	simulator.PublishPrice(EquityQuote{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"})
+	time.Sleep(500 * time.Millisecond)
+	simulator.PublishPrice(EquityQuote{BidPrice: 1285.46, AskPrice: 9555.00, Symbol: "ACA"})
+	time.Sleep(500 * time.Millisecond)
 }

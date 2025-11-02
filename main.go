@@ -37,11 +37,11 @@ func main() {
 	_ = os.Setenv(APCA_SECRET, os.Getenv(prefix+"_API_SECRET"))
 	_ = os.Setenv(APCA_BASE_URL, os.Getenv(prefix+"_BASE_URL"))
 	_ = os.Setenv(APCA_API_VERSION, os.Getenv(prefix+"_API_VERSION"))
-	_ = os.Setenv(internal.APCA_MARKET_PRICING_STREAM, os.Getenv(prefix+"_PRICING_MARKET_STREAM"))
+	_ = os.Setenv(internal.APCA_PRICING_MARKET_STREAM, os.Getenv(prefix+"_PRICING_MARKET_STREAM"))
 	_ = os.Setenv(APCA_MARKET_HISTORICAL_URL, os.Getenv(prefix+"_MARKET_HISTORICAL_URL"))
 	if env == "test" {
 		logger.Info("******* PRICING FOR FAKEPACA TEST ENVIRONMENT ****************")
-		_ = os.Setenv(internal.APCA_MARKET_PRICING_STREAM, os.Getenv("APCA_TEST_PRICING_MARKET_STREAM"))
+		_ = os.Setenv(internal.APCA_PRICING_MARKET_STREAM, os.Getenv("APCA_TEST_PRICING_MARKET_STREAM"))
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))

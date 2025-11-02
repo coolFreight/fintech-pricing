@@ -70,8 +70,15 @@ func NewPriceSimulator() *PriceSimulator {
 	return simulator
 }
 
-func (ps *PriceSimulator) PublishPrice(quote any) error {
+func (ps *PriceSimulator) ServerConnectionClose() {
+	err := ps.ws.Close()
+	if err != nil {
+		logger.Error("Could not force the server connection to be lost")
+		return
+	}
+}
 
+func (ps *PriceSimulator) PublishPrice(quote any) error {
 	if quote == io.EOF {
 		logger.Info("received io.EOF for pricing")
 		err := ps.ws.WriteMessage(gSocket.CloseMessage, gSocket.FormatCloseMessage(gSocket.CloseNormalClosure, ""))
@@ -142,9 +149,6 @@ func (ps *PriceSimulator) Start() error {
 		logger.Error("Server has shutdown", slog.Any("error", err))
 	}()
 
-	s.RegisterOnShutdown(func() {
-
-	})
 	ps.server = s
 	ps.WebsockUrl = "ws://127.0.0.1:8080/pricing"
 	ps.HttpUrl = "http://127.0.0.1:8080"
@@ -168,7 +172,6 @@ func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request
 		slog.Error("Websocket dial failed ", "error", err)
 		return
 	}
-
 	ps.ws = c
 	for {
 		var request PricingConnect
@@ -189,7 +192,6 @@ func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			logger.Error("Pricing-Simulator: Websocket write error", slog.Any("error", err))
 		}
-		time.Sleep(3 * time.Second)
 	}
 }
 
@@ -204,7 +206,6 @@ func (ps *PriceSimulator) orderSimulation(w http.ResponseWriter, r *http.Request
 
 	ps.tradeWs = c
 	for {
-
 		_, message, err := c.ReadMessage()
 		if err != nil {
 			slog.Error("Could not read json data", "error", err)

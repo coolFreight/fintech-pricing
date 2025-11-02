@@ -46,26 +46,27 @@ type PricingConnect struct {
 }
 
 type PricingClient struct {
-	conn      *websocket.Conn
-	logger    *slog.Logger
-	done      chan any
-	Quotes    []string
-	retryChan chan bool
+	conn        *websocket.Conn
+	logger      *slog.Logger
+	done        chan any
+	Quotes      []string
+	retryChan   chan bool
+	pricingChan chan []EquityQuote
 }
 
 func NewPricingClient(conn *websocket.Conn, retryChan chan bool, logger *slog.Logger) *PricingClient {
 	return &PricingClient{
-		conn:      conn,
-		logger:    logger,
-		retryChan: retryChan,
+		conn:        conn,
+		logger:      logger,
+		retryChan:   retryChan,
+		pricingChan: make(chan []EquityQuote),
 	}
 }
 
 func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 	logger := pc.logger
 	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : %s ", tickers))
-	quotes := PricingConnect{Action: "subscribe", Quotes: tickers}
-	err := send(quotes, pc.conn, logger)
+	err := send(PricingConnect{Action: "subscribe", Quotes: tickers}, pc.conn, logger)
 	pc.Quotes = tickers
 	if err != nil {
 		logger.Error("Could not subscribe to quotes ", "error", err)
@@ -73,36 +74,36 @@ func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 	}
 	read(pc.conn, logger)
 	logger.Info(fmt.Sprintf("Successfully subscribed for quotes %s", tickers))
-	quoteChan := make(chan []EquityQuote)
+	pc.pricing()
+	return pc.pricingChan, nil
+}
 
+func (pc *PricingClient) pricing() {
+	var quotes []EquityQuote
 	go func() {
-		var quotes []EquityQuote
-		go func() {
-			defer logger.Warn("shutting down quote channel")
-			defer close(quoteChan)
-			defer func(conn *websocket.Conn) {
-				err := conn.Close()
-				if err != nil {
-					logger.Error("Error closing connection", "error", err)
-				}
-			}(pc.conn)
-			for {
-				if err := websocket.JSON.Receive(pc.conn, &quotes); err != nil {
-					if err == io.EOF {
-						logger.Warn("Order manager connection lost")
-						pc.retryChan <- true
-						return
-					} else {
-						logger.Error("Error reading data", "error", err)
-						return
-					}
-				} else {
-					quoteChan <- quotes
-				}
+		defer logger.Warn("shutting down pricing websocket connection")
+		defer func(conn *websocket.Conn) {
+			err := conn.Close()
+			if err != nil {
+				logger.Error("Error pricing closing connection", "error", err)
 			}
-		}()
+		}(pc.conn)
+		logger.Info("####### Starting pricing quotes #######")
+		for {
+			if err := websocket.JSON.Receive(pc.conn, &quotes); err != nil {
+				if err == io.EOF {
+					logger.Warn("Pricing connection lost")
+					pc.retryChan <- true
+					return
+				} else {
+					logger.Error("Error reading data", "error", err)
+					return
+				}
+			} else {
+				pc.pricingChan <- quotes
+			}
+		}
 	}()
-	return quoteChan, nil
 }
 
 func (pc *PricingClient) Reconnect() (*websocket.Conn, error) {
@@ -117,10 +118,12 @@ func (pc *PricingClient) Reconnect() (*websocket.Conn, error) {
 			logger.Error("Could not subscribe to quotes ", "error", err)
 		} else {
 			read(conn, logger)
-			logger.Info("ReSubscribed to quotes")
+			pc.conn = conn
+			pc.pricing()
+			logger.Info("Successfully resubscribed for price quotes")
 		}
 	}
-	return conn, err
+	return pc.conn, err
 }
 
 func (q EquityQuote) String() string {
@@ -161,6 +164,7 @@ func read(ws *websocket.Conn, logger *slog.Logger) {
 
 func (pc *PricingClient) Stop() {
 	slog.Info("Stopping Price Simulator")
+	defer close(pc.pricingChan)
 	defer func(conn *websocket.Conn) {
 		err := conn.Close()
 		if err != nil {

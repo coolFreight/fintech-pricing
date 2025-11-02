@@ -13,7 +13,7 @@ const (
 	APCA_SECRET                = "APCA_API_SECRET_KEY"
 	APCA_BASE_URL              = "APCA_BASE_URL"
 	APCA_API_VERSION           = "APCA_API_VERSION"
-	APCA_MARKET_PRICING_STREAM = "APCA_PRICING_MARKET_STREAM"
+	APCA_PRICING_MARKET_STREAM = "APCA_PRICING_MARKET_STREAM"
 )
 
 type Auth struct {
@@ -26,9 +26,9 @@ var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 func Connect() (*websocket.Conn, error) {
 	origin := os.Getenv(APCA_BASE_URL) + os.Getenv(APCA_API_VERSION)
-	url := os.Getenv(APCA_MARKET_PRICING_STREAM)
+	url := os.Getenv(APCA_PRICING_MARKET_STREAM)
 	logger.Info("configs ", slog.String(APCA_BASE_URL, os.Getenv(APCA_BASE_URL)))
-	logger.Info("configs ", slog.String(APCA_MARKET_PRICING_STREAM, os.Getenv(APCA_MARKET_PRICING_STREAM)))
+	logger.Info("configs ", slog.String(APCA_PRICING_MARKET_STREAM, os.Getenv(APCA_PRICING_MARKET_STREAM)))
 	logger.Info("configs ", slog.String(APCA_API_VERSION, os.Getenv(APCA_API_VERSION)))
 	logger.Info("Connecting websocket stream ", slog.String("url", url))
 	logger.Info("Using ", slog.String("origin", origin))
