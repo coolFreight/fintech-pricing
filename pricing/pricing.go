@@ -100,7 +100,9 @@ func (pc *PricingClient) pricing() {
 					return
 				}
 			} else {
-				pc.pricingChan <- quotes
+				qCopy := make([]EquityQuote, len(quotes))
+				copy(qCopy, quotes)
+				pc.pricingChan <- qCopy
 			}
 		}
 	}()
