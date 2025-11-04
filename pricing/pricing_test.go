@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/coolFreight/fintech-pricing/internal"
+	"github.com/datenhahn/golang-awaitility/awaitility"
 )
 
 var _ = func() bool {
@@ -16,7 +17,10 @@ var _ = func() bool {
 
 func TestPricingReconnect(t *testing.T) {
 	simulator := NewPriceSimulator()
-	simulator.Start()
+	err := simulator.Start()
+	if err != nil {
+		t.Errorf("Failing test")
+	}
 
 	retryChan := make(chan bool)
 
@@ -27,13 +31,19 @@ func TestPricingReconnect(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	pricingWebsocket, err := internal.Connect()
 	pricingClient := NewPricingClient(pricingWebsocket, retryChan, logger)
-	pricingClient.Start([]string{"ACA"})
+	_, err = pricingClient.Start([]string{"ACA"})
+	if err != nil {
+		t.Errorf("Failing test")
+	}
 
 	go func() {
 		for {
 			select {
 			case <-retryChan:
-				pricingClient.Reconnect()
+				_, err = pricingClient.Reconnect()
+				if err != nil {
+					t.Errorf("Failing test")
+				}
 				logger.Info("Called reconnect on pricing client.")
 			}
 		}
@@ -54,16 +64,30 @@ func TestPricingReconnect(t *testing.T) {
 		}
 	}()
 
-	simulator.PublishPrice(EquityQuote{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"}})
+	if err != nil {
+		t.Errorf("Failing test")
+	}
 	time.Sleep(500 * time.Millisecond)
-	simulator.PublishPrice(EquityQuote{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"}})
+	if err != nil {
+		t.Errorf("Failing test")
+	}
 	time.Sleep(500 * time.Millisecond)
-	simulator.PublishPrice(EquityQuote{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"}})
+	if err != nil {
+		t.Errorf("Failing test")
+	}
 
 	simulator.ServerConnectionClose()
 
-	simulator.PublishPrice(EquityQuote{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"})
-	time.Sleep(500 * time.Millisecond)
-	simulator.PublishPrice(EquityQuote{BidPrice: 1285.46, AskPrice: 9555.00, Symbol: "ACA"})
-	time.Sleep(500 * time.Millisecond)
+	err = awaitility.Await(1000*time.Millisecond, 5*time.Second, func() bool {
+		err = simulator.PublishPrice([]EquityQuote{{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"}})
+		return err == nil
+	})
+
+	if err != nil {
+		t.Errorf("Expect a reconnection to happen")
+	}
+
 }
