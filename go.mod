@@ -4,6 +4,7 @@ go 1.24.2
 
 require (
 	github.com/alpacahq/alpaca-trade-api-go/v3 v3.9.0
+	github.com/datenhahn/golang-awaitility v0.0.0-20180710094957-fb55e59708c7
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	golang.org/x/net v0.46.0
@@ -13,5 +14,6 @@ require (
 	cloud.google.com/go v0.123.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 )
