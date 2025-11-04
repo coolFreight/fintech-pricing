@@ -101,12 +101,17 @@ func (pc *PricingClient) pricing() {
 					return
 				} else {
 					logger.Error("Error reading data", "error", err)
-					return
+					continue
 				}
-			} else {
-				qCopy := make([]EquityQuote, len(quotes))
-				copy(qCopy, quotes)
-				pc.pricingChan <- qCopy
+			}
+
+			qCopy := make([]EquityQuote, len(quotes))
+			copy(qCopy, quotes)
+			pc.pricingChan <- qCopy
+			select {
+			case pc.pricingChan <- quotes:
+			default:
+				// if nobody is receiving, drop the quotes to avoid blocking
 			}
 		}
 	}()

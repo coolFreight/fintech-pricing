@@ -63,29 +63,29 @@ func TestPricingReconnect(t *testing.T) {
 		}
 	}()
 
-	err = simulator.PublishPrice(EquityQuote{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"}})
 	if err != nil {
 		t.Fail()
 	}
 	time.Sleep(500 * time.Millisecond)
-	err = simulator.PublishPrice(EquityQuote{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"}})
 	if err != nil {
 		t.Fail()
 	}
 	time.Sleep(500 * time.Millisecond)
-	err = simulator.PublishPrice(EquityQuote{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"}})
 	if err != nil {
 		t.Fail()
 	}
 
 	simulator.ServerConnectionClose()
 
-	err = simulator.PublishPrice(EquityQuote{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"}})
 	if err != nil {
 		t.Fail()
 	}
 	time.Sleep(500 * time.Millisecond)
-	err = simulator.PublishPrice(EquityQuote{BidPrice: 1285.46, AskPrice: 9555.00, Symbol: "ACA"})
+	err = simulator.PublishPrice([]EquityQuote{{BidPrice: 1285.46, AskPrice: 9555.00, Symbol: "ACA"}})
 	if err != nil {
 		t.Fail()
 	}
