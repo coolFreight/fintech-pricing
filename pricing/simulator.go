@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
@@ -29,6 +30,7 @@ type PriceSimulator struct {
 	HttpUrl         string
 	endpoints       map[string]func(writer http.ResponseWriter, request *http.Request)
 	server          *http.Server
+	lock            sync.Mutex
 }
 
 type Auth struct {
@@ -79,18 +81,24 @@ func (ps *PriceSimulator) ServerConnectionClose() {
 }
 
 func (ps *PriceSimulator) PublishPrice(quote any) error {
+
 	if quote == io.EOF {
 		logger.Info("received io.EOF for pricing")
+		ps.lock.Lock()
 		err := ps.ws.WriteMessage(gSocket.CloseMessage, gSocket.FormatCloseMessage(gSocket.CloseNormalClosure, ""))
+		ps.lock.Unlock()
 		if err != nil {
 			logger.Error("Close pricing  ws failed", slog.Any("error", err))
 			return err
 		}
 	} else {
-		q := quote.(EquityQuote)
-		quotes := make([]EquityQuote, 0)
-		quotes = append(quotes, q)
+		quotes := quote.([]EquityQuote)
+		for ps.lock.TryLock() != true {
+			logger.Info("waiting for lock to publish price")
+			time.Sleep(5 * time.Second)
+		}
 		err := ps.ws.WriteJSON(quotes)
+		ps.lock.Unlock()
 		if err != nil {
 			logger.Error("Write JSON failed", slog.Any("error", err))
 			return err
@@ -108,7 +116,7 @@ func (ps *PriceSimulator) PublishOrderEvent(trade any) error {
 		logger.Info("received io.EOF")
 		err := ps.tradeWs.WriteMessage(gSocket.CloseMessage, gSocket.FormatCloseMessage(gSocket.CloseNormalClosure, ""))
 		if err != nil {
-			logger.Error("Close trade ws failed", slog.Any("error", err))
+			logger.Error("Close trade tradeWs failed", slog.Any("error", err))
 			return err
 		}
 	} else {
@@ -188,7 +196,9 @@ func (ps *PriceSimulator) priceSimulation(w http.ResponseWriter, r *http.Request
 		}
 		resps := make([]AuthResponse, 0)
 		resps = append(resps, *resp)
+		ps.lock.Lock()
 		err = c.WriteJSON(resps)
+		ps.lock.Unlock()
 		if err != nil {
 			logger.Error("Pricing-Simulator: Websocket write error", slog.Any("error", err))
 		}

@@ -16,7 +16,10 @@ var _ = func() bool {
 
 func TestPricingReconnect(t *testing.T) {
 	simulator := NewPriceSimulator()
-	simulator.Start()
+	err := simulator.Start()
+	if err != nil {
+		t.Fail()
+	}
 
 	retryChan := make(chan bool)
 
@@ -27,13 +30,19 @@ func TestPricingReconnect(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	pricingWebsocket, err := internal.Connect()
 	pricingClient := NewPricingClient(pricingWebsocket, retryChan, logger)
-	pricingClient.Start([]string{"ACA"})
+	_, err = pricingClient.Start([]string{"ACA"})
+	if err != nil {
+		t.Fail()
+	}
 
 	go func() {
 		for {
 			select {
 			case <-retryChan:
-				pricingClient.Reconnect()
+				_, err = pricingClient.Reconnect()
+				if err != nil {
+					t.Fail()
+				}
 				logger.Info("Called reconnect on pricing client.")
 			}
 		}
@@ -54,16 +63,31 @@ func TestPricingReconnect(t *testing.T) {
 		}
 	}()
 
-	simulator.PublishPrice(EquityQuote{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"})
+	err = simulator.PublishPrice(EquityQuote{BidPrice: 75.46, AskPrice: 65.00, Symbol: "ACA"})
+	if err != nil {
+		t.Fail()
+	}
 	time.Sleep(500 * time.Millisecond)
-	simulator.PublishPrice(EquityQuote{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"})
+	err = simulator.PublishPrice(EquityQuote{BidPrice: 85.46, AskPrice: 95.00, Symbol: "ACA"})
+	if err != nil {
+		t.Fail()
+	}
 	time.Sleep(500 * time.Millisecond)
-	simulator.PublishPrice(EquityQuote{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"})
+	err = simulator.PublishPrice(EquityQuote{BidPrice: 985.46, AskPrice: 195.00, Symbol: "ACA"})
+	if err != nil {
+		t.Fail()
+	}
 
 	simulator.ServerConnectionClose()
 
-	simulator.PublishPrice(EquityQuote{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"})
+	err = simulator.PublishPrice(EquityQuote{BidPrice: 1175.46, AskPrice: 6435.00, Symbol: "ACA"})
+	if err != nil {
+		t.Fail()
+	}
 	time.Sleep(500 * time.Millisecond)
-	simulator.PublishPrice(EquityQuote{BidPrice: 1285.46, AskPrice: 9555.00, Symbol: "ACA"})
+	err = simulator.PublishPrice(EquityQuote{BidPrice: 1285.46, AskPrice: 9555.00, Symbol: "ACA"})
+	if err != nil {
+		t.Fail()
+	}
 	time.Sleep(500 * time.Millisecond)
 }
