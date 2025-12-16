@@ -30,8 +30,8 @@ func TestPricingReconnect(t *testing.T) {
 	_ = os.Setenv(internal.APCA_PRICING_MARKET_STREAM, url)
 	time.Sleep(1 * time.Second)
 	pricingWebsocket, err := internal.Connect()
-	pricingClient := NewPricingClient(pricingWebsocket, retryChan, logger)
-	_, err = pricingClient.Start([]string{"ACA"})
+	pricingClient := NewEquityPricingClient(pricingWebsocket, retryChan, logger)
+	pC, err := pricingClient.Start([]string{"ACA"})
 	if err != nil {
 		t.Errorf("Failing test")
 	}
@@ -54,10 +54,10 @@ func TestPricingReconnect(t *testing.T) {
 		return
 	}
 
-	//give some time to do the subcription subcribes
-	time.Sleep(2 * time.Second)
+	//give some time to do the subscription subscribes
+	time.Sleep(5 * time.Second)
 	go func() {
-		for prices := range pricingClient.pricingChan {
+		for prices := range pC {
 			for _, price := range prices {
 				slog.Info("Received price", slog.Any("quote", price))
 			}
