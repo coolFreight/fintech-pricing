@@ -22,7 +22,7 @@ type PriceSimulator struct {
 	ticker          string
 	quotes          []EquityQuote
 	randomizeQuotes bool
-	pricingClient   *PricingClient
+	pricingClient   *Client
 	ws              *gSocket.Conn
 	tradeWs         *gSocket.Conn
 	Snapshots       []marketdata.Snapshot

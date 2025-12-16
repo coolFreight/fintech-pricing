@@ -46,7 +46,7 @@ type PricingConnect struct {
 	Quotes []string `json:"quotes"`
 }
 
-type PricingClient struct {
+type EquityPricingClient struct {
 	conn        *websocket.Conn
 	logger      *slog.Logger
 	done        chan any
@@ -56,8 +56,15 @@ type PricingClient struct {
 	mu          sync.Mutex
 }
 
-func NewPricingClient(conn *websocket.Conn, retryChan chan bool, logger *slog.Logger) *PricingClient {
-	return &PricingClient{
+type Client interface {
+	Start(tickers []string) (<-chan []EquityQuote, error)
+	Reconnect() (*websocket.Conn, error)
+	UpdateSubscription(ticker string) error
+	Stop()
+}
+
+func NewEquityPricingClient(conn *websocket.Conn, retryChan chan bool, logger *slog.Logger) Client {
+	return &EquityPricingClient{
 		conn:        conn,
 		logger:      logger,
 		retryChan:   retryChan,
@@ -65,7 +72,7 @@ func NewPricingClient(conn *websocket.Conn, retryChan chan bool, logger *slog.Lo
 	}
 }
 
-func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
+func (pc *EquityPricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 	logger := pc.logger
 	logger.Info(fmt.Sprintf("Subscribing for pricing for tickers : %s ", tickers))
 	err := send(PricingConnect{Action: "subscribe", Quotes: tickers}, pc.conn, logger)
@@ -80,7 +87,7 @@ func (pc *PricingClient) Start(tickers []string) (<-chan []EquityQuote, error) {
 	return pc.pricingChan, nil
 }
 
-func (pc *PricingClient) pricing() {
+func (pc *EquityPricingClient) pricing() {
 	go func() {
 		defer logger.Warn("shutting down pricing websocket connection")
 		defer func(conn *websocket.Conn) {
@@ -117,7 +124,7 @@ func (pc *PricingClient) pricing() {
 	}()
 }
 
-func (pc *PricingClient) Reconnect() (*websocket.Conn, error) {
+func (pc *EquityPricingClient) Reconnect() (*websocket.Conn, error) {
 	pc.logger.Info("Reconnecting for pricing")
 	conn, err := internal.Connect()
 	if err != nil {
@@ -157,7 +164,7 @@ func send(data any, ws *websocket.Conn, logger *slog.Logger) error {
 	return websocket.Message.Send(ws, dataBytes)
 }
 
-func (pc *PricingClient) UpdateSubscription(ticker string) error {
+func (pc *EquityPricingClient) UpdateSubscription(ticker string) error {
 	pc.mu.Lock()
 	pc.Quotes = append(pc.Quotes, ticker)
 	pc.mu.Unlock()
@@ -179,7 +186,7 @@ func read(ws *websocket.Conn, logger *slog.Logger) {
 	fmt.Printf("Message from host: %s.\n", msg[:n])
 }
 
-func (pc *PricingClient) Stop() {
+func (pc *EquityPricingClient) Stop() {
 	slog.Info("Stopping Price Simulator")
 	defer close(pc.pricingChan)
 	defer func(conn *websocket.Conn) {

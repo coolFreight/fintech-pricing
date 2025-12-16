@@ -52,7 +52,7 @@ func main() {
 		logger.Error("Error connecting to pricing", slog.Any("error", err))
 		return
 	}
-	pc := pricing.NewPricingClient(conn, make(chan bool), logger)
+	pc := pricing.NewEquityPricingClient(conn, make(chan bool), logger)
 
 	priceChan, err := pc.Start([]string{"APLD"})
 	for price := range priceChan {
